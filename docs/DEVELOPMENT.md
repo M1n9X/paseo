@@ -121,6 +121,46 @@ npx expo-doctor
 
 Diagnoses version mismatches and native module issues.
 
+## Performance regression workflow
+
+Use the local benchmark workflow when a change may affect CLI startup, timeline fetch cost, or daemon real-time delivery behavior. Typical triggers are changes under `packages/cli/src/*`, `packages/server/src/server/session.ts`, `packages/server/src/server/websocket-server.ts`, or any benchmark/compare script.
+
+Standard operating steps:
+
+1. Capture a baseline on the same machine you will use for comparison.
+2. Keep benchmark parameters stable between runs: same suite, iteration count, row count, and tail limit.
+3. Compare fresh candidate results against that baseline instead of comparing two ad-hoc terminal runs.
+4. Treat `meanMs` as the primary signal. For `cli-startup`, `peakRssBytes` is a warning signal, not the main verdict.
+5. For `timeline-fetch`, treat `invalid-comparison` as a workload-shape mismatch first. Fix the scenario mismatch before drawing performance conclusions.
+6. If the result looks noisy, rerun with more iterations before concluding there is a regression.
+
+Recommended commands:
+
+```bash
+# 1. Capture a timestamped baseline directory
+BASELINE_DIR="$HOME/paseo-benchmarks/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$BASELINE_DIR"
+npm run benchmark:regression:capture -- --suite all --output-dir "$BASELINE_DIR"
+
+# 2. Compare current code against that baseline
+npm run benchmark:regression:compare -- --suite all --baseline-dir "$BASELINE_DIR"
+
+# 3. Save machine-readable comparison output when you need to share or diff results
+npm run benchmark:regression:compare -- \
+  --suite all \
+  --baseline-dir "$BASELINE_DIR" \
+  --json-output /tmp/paseo-regression.json
+```
+
+Interpretation guidance:
+
+- `improved`: primary metric improved by at least the configured threshold.
+- `regressed`: primary metric worsened by at least the configured threshold.
+- `unchanged`: movement stayed within the configured threshold band.
+- `invalid-comparison`: the benchmark scenarios no longer represent the same workload and must be fixed before comparison is meaningful.
+
+See [CLI_VPS_PERFORMANCE_PHASE4_REGRESSION_WORKFLOW.md](./CLI_VPS_PERFORMANCE_PHASE4_REGRESSION_WORKFLOW.md) for the workflow-specific details.
+
 ## Typecheck
 
 Always run typecheck after changes:
