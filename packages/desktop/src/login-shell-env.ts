@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { userInfo } from "node:os";
 import { basename } from "node:path";
+import { resolveDesktopNodeExecPath } from "./daemon/node-entrypoint-launcher.js";
 
 const RESOLVE_TIMEOUT_MS = 10_000;
 
@@ -32,21 +33,26 @@ function resolveShellEnv(): Record<string, string> | undefined {
 
   const shell = getSystemShell();
   const name = basename(shell);
+  const probeExecPath = resolveDesktopNodeExecPath({
+    execPath: process.execPath,
+    isPackaged: process.platform === "darwin" && process.execPath.includes(".app/Contents/MacOS/"),
+    platform: process.platform,
+  });
 
   let command: string;
   let shellArgs: string[];
 
   if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
-    command = `& '${process.execPath}' -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
+    command = `& '${probeExecPath}' -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
     shellArgs = ["-Login", "-Command"];
   } else if (name === "nu") {
-    command = `^'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+    command = `^'${probeExecPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
     shellArgs = ["-i", "-l", "-c"];
   } else if (name === "xonsh") {
     command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
     shellArgs = ["-i", "-l", "-c"];
   } else {
-    command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+    command = `'${probeExecPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
     if (name === "tcsh" || name === "csh") {
       shellArgs = ["-ic"];
     } else {

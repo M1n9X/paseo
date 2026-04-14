@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createNodeEntrypointInvocation,
   parseCliPassthroughArgsFromArgv,
+  resolveDesktopNodeExecPath,
   type NodeEntrypointSpec,
 } from "./node-entrypoint-launcher";
 
@@ -84,6 +85,32 @@ describe("node-entrypoint-launcher", () => {
   });
 
   describe("createNodeEntrypointInvocation", () => {
+    it("uses the packaged Helper executable for macOS node-style subprocesses", () => {
+      expect(
+        resolveDesktopNodeExecPath({
+          execPath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+          isPackaged: true,
+          platform: "darwin",
+          pathExists: (candidate) =>
+            candidate ===
+            "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
+        }),
+      ).toBe(
+        "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
+      );
+    });
+
+    it("falls back to the main executable when the macOS Helper is unavailable", () => {
+      expect(
+        resolveDesktopNodeExecPath({
+          execPath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+          isPackaged: true,
+          platform: "darwin",
+          pathExists: () => false,
+        }),
+      ).toBe("/Applications/Paseo.app/Contents/MacOS/Paseo");
+    });
+
     it("uses the packaged runner when the desktop app is packaged", () => {
       expect(
         createNodeEntrypointInvocation({

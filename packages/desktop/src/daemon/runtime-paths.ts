@@ -8,6 +8,7 @@ import {
   DESKTOP_CLI_ENV,
   createNodeEntrypointInvocation as createSharedNodeEntrypointInvocation,
   parseCliPassthroughArgsFromArgv as parseCliPassthroughArgs,
+  resolveDesktopNodeExecPath,
   type NodeEntrypointArgvMode,
   type NodeEntrypointInvocation,
   type NodeEntrypointSpec,
@@ -175,30 +176,6 @@ export function resolveCliEntrypoint(): NodeEntrypointSpec {
   };
 }
 
-function resolveNodeExecPath(): string {
-  if (app.isPackaged && process.platform === "darwin") {
-    const marker = ".app/Contents/MacOS/";
-    const markerIndex = process.execPath.indexOf(marker);
-    if (markerIndex !== -1) {
-      const bundleRoot = process.execPath.substring(0, markerIndex + ".app".length);
-      const name = path.basename(process.execPath);
-      const helperPath = path.join(
-        bundleRoot,
-        "Contents",
-        "Frameworks",
-        `${name} Helper.app`,
-        "Contents",
-        "MacOS",
-        `${name} Helper`,
-      );
-      if (existsSync(helperPath)) {
-        return helperPath;
-      }
-    }
-  }
-  return process.execPath;
-}
-
 export function createNodeEntrypointInvocation(input: {
   entrypoint: NodeEntrypointSpec;
   argvMode: NodeEntrypointArgvMode;
@@ -206,7 +183,11 @@ export function createNodeEntrypointInvocation(input: {
   baseEnv: NodeJS.ProcessEnv;
 }): NodeEntrypointInvocation {
   return createSharedNodeEntrypointInvocation({
-    execPath: resolveNodeExecPath(),
+    execPath: resolveDesktopNodeExecPath({
+      execPath: process.execPath,
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+    }),
     isPackaged: app.isPackaged,
     packagedRunnerPath: app.isPackaged
       ? assertPathExists({

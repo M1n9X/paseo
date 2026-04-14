@@ -952,6 +952,31 @@ describe("ClaudeAgentSession redesign invariants", () => {
     await session.close();
   });
 
+  test("rejects unsupported image MIME types when building Claude user messages", async () => {
+    const session = await createSession();
+    const internal = session as unknown as {
+      toSdkUserMessage: (
+        prompt: Array<{ type: "image"; mimeType: string; data: string }>,
+      ) => unknown;
+    };
+
+    try {
+      expect(() =>
+        internal.toSdkUserMessage([
+          {
+            type: "image",
+            mimeType: "image/svg+xml",
+            data: "PHN2Zz48L3N2Zz4=",
+          },
+        ]),
+      ).toThrow(
+        "Claude only supports image/jpeg, image/png, image/gif, and image/webp attachments.",
+      );
+    } finally {
+      await session.close();
+    }
+  });
+
   test("tracks run lifecycle transitions for success, error, and interrupt", async () => {
     const session = await createSession();
     let streamCase: "success" | "error" | "interrupt" = "success";

@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 const IGNORED_ARG_PREFIXES = ["-psn_", "--no-sandbox"];
 
 export const DESKTOP_CLI_ENV = "PASEO_DESKTOP_CLI";
@@ -36,6 +39,38 @@ export function createElectronNodeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.Proces
     ...baseEnv,
     ELECTRON_RUN_AS_NODE: "1",
   };
+}
+
+export function resolveDesktopNodeExecPath(input: {
+  execPath: string;
+  isPackaged: boolean;
+  platform: NodeJS.Platform;
+  pathExists?: (candidate: string) => boolean;
+}): string {
+  const pathExists = input.pathExists ?? existsSync;
+
+  if (input.isPackaged && input.platform === "darwin") {
+    const marker = ".app/Contents/MacOS/";
+    const markerIndex = input.execPath.indexOf(marker);
+    if (markerIndex !== -1) {
+      const bundleRoot = input.execPath.substring(0, markerIndex + ".app".length);
+      const name = path.basename(input.execPath);
+      const helperPath = path.join(
+        bundleRoot,
+        "Contents",
+        "Frameworks",
+        `${name} Helper.app`,
+        "Contents",
+        "MacOS",
+        `${name} Helper`,
+      );
+      if (pathExists(helperPath)) {
+        return helperPath;
+      }
+    }
+  }
+
+  return input.execPath;
 }
 
 export function parseCliPassthroughArgsFromArgv(
