@@ -1,8 +1,12 @@
+import { inheritLoginShellEnv, maybeHandleShellEnvProbeLaunch } from "./login-shell-env.js";
+if (maybeHandleShellEnvProbeLaunch()) {
+  process.exit(0);
+}
+
 import log from "electron-log/main";
 log.transports.console.level = "info";
 log.initialize({ spyRendererConsole: true });
 
-import { inheritLoginShellEnv } from "./login-shell-env.js";
 inheritLoginShellEnv();
 
 import path from "node:path";

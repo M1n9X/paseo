@@ -33,6 +33,7 @@ function restoreProcessProperty(
 describe("login-shell-env", () => {
   const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
   const originalExecPath = Object.getOwnPropertyDescriptor(process, "execPath");
+  const originalArgv = process.argv;
   const originalShell = process.env.SHELL;
 
   beforeEach(() => {
@@ -57,6 +58,7 @@ describe("login-shell-env", () => {
   afterEach(() => {
     restoreProcessProperty("platform", originalPlatform);
     restoreProcessProperty("execPath", originalExecPath);
+    process.argv = originalArgv;
     if (originalShell === undefined) {
       delete process.env.SHELL;
     } else {
@@ -77,5 +79,39 @@ describe("login-shell-env", () => {
       "-c",
       "'/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper' -p '\"123456781234\" + JSON.stringify(process.env) + \"123456781234\"'",
     ]);
+  });
+
+  it("detects shell-env probe launches from Electron argv", async () => {
+    const { getShellEnvProbeMarker } = await import("./login-shell-env");
+
+    expect(
+      getShellEnvProbeMarker([
+        "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
+        "-p",
+        '"123456781234" + JSON.stringify(process.env) + "123456781234"',
+      ]),
+    ).toBe("123456781234");
+
+    expect(
+      getShellEnvProbeMarker([
+        "/Applications/Paseo.app/Contents/MacOS/Paseo",
+        "--open-project",
+        "/tmp/project",
+      ]),
+    ).toBeNull();
+  });
+
+  it("short-circuits shell-env probe launches from the real Electron argv", async () => {
+    const stdoutWriteSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const { maybeHandleShellEnvProbeLaunch } = await import("./login-shell-env");
+
+    process.argv = [
+      "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
+      "-p",
+      '"123456781234" + JSON.stringify(process.env) + "123456781234"',
+    ];
+
+    expect(maybeHandleShellEnvProbeLaunch()).toBe(true);
+    expect(stdoutWriteSpy).toHaveBeenCalledWith(expect.stringContaining("123456781234"));
   });
 });

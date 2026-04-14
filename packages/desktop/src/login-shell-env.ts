@@ -9,6 +9,8 @@ import { basename } from "node:path";
 import { resolveDesktopNodeExecPath } from "./daemon/node-entrypoint-launcher.js";
 
 const RESOLVE_TIMEOUT_MS = 10_000;
+const SHELL_ENV_PROBE_ARG = "-p";
+const SHELL_ENV_PROBE_PATTERN = /^"([^"]+)" \+ JSON\.stringify\(process\.env\) \+ "\1"$/;
 
 function getSystemShell(): string {
   const shell = process.env.SHELL;
@@ -20,6 +22,30 @@ function getSystemShell(): string {
   } catch {}
 
   return process.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
+}
+
+export function getShellEnvProbeMarker(argv: string[]): string | null {
+  if (argv[1] !== SHELL_ENV_PROBE_ARG) {
+    return null;
+  }
+
+  const expression = argv[2];
+  if (typeof expression !== "string") {
+    return null;
+  }
+
+  const match = SHELL_ENV_PROBE_PATTERN.exec(expression.trim());
+  return match?.[1] ?? null;
+}
+
+export function maybeHandleShellEnvProbeLaunch(): boolean {
+  const marker = getShellEnvProbeMarker(process.argv);
+  if (!marker) {
+    return false;
+  }
+
+  process.stdout.write(`${marker}${JSON.stringify(process.env)}${marker}`);
+  return true;
 }
 
 function resolveShellEnv(): Record<string, string> | undefined {
