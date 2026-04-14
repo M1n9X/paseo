@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { spawnSyncMock, randomUUIDMock, userInfoMock } = vi.hoisted(() => ({
+const { spawnSyncMock, randomUUIDMock, userInfoMock, writeSyncMock } = vi.hoisted(() => ({
   spawnSyncMock: vi.fn(),
   randomUUIDMock: vi.fn(() => "12345678-1234-1234-1234-1234567890ab"),
   userInfoMock: vi.fn(() => ({ shell: "/bin/zsh" })),
+  writeSyncMock: vi.fn(),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -17,6 +18,14 @@ vi.mock("node:crypto", () => ({
 vi.mock("node:os", () => ({
   userInfo: userInfoMock,
 }));
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    writeSync: writeSyncMock,
+  };
+});
 
 function restoreProcessProperty(
   key: "platform" | "execPath",
@@ -43,6 +52,7 @@ describe("login-shell-env", () => {
       status: 0,
       stdout: "",
     });
+    writeSyncMock.mockReturnValue(0);
 
     Object.defineProperty(process, "platform", {
       value: "darwin",
@@ -101,8 +111,7 @@ describe("login-shell-env", () => {
     ).toBeNull();
   });
 
-  it("short-circuits shell-env probe launches from the real Electron argv", async () => {
-    const stdoutWriteSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  it("short-circuits shell-env probe launches by synchronously writing to stdout", async () => {
     const { maybeHandleShellEnvProbeLaunch } = await import("./login-shell-env");
 
     process.argv = [
@@ -112,6 +121,9 @@ describe("login-shell-env", () => {
     ];
 
     expect(maybeHandleShellEnvProbeLaunch()).toBe(true);
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(expect.stringContaining("123456781234"));
+    expect(writeSyncMock).toHaveBeenCalledWith(
+      process.stdout.fd,
+      expect.stringContaining("123456781234"),
+    );
   });
 });

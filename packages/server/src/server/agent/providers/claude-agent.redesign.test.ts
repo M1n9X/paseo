@@ -977,6 +977,43 @@ describe("ClaudeAgentSession redesign invariants", () => {
     }
   });
 
+  test("accepts image/jpg attachments when building Claude user messages", async () => {
+    const session = await createSession();
+    const internal = session as unknown as {
+      toSdkUserMessage: (prompt: Array<{ type: "image"; mimeType: string; data: string }>) => {
+        message: {
+          content: Array<{
+            type: "image";
+            source: { type: "base64"; media_type: string; data: string };
+          }>;
+        };
+      };
+    };
+
+    try {
+      const sdkMessage = internal.toSdkUserMessage([
+        {
+          type: "image",
+          mimeType: "image/jpg",
+          data: "/9j/4AAQSkZJRgABAQ==",
+        },
+      ]);
+
+      expect(sdkMessage.message.content).toEqual([
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/jpeg",
+            data: "/9j/4AAQSkZJRgABAQ==",
+          },
+        },
+      ]);
+    } finally {
+      await session.close();
+    }
+  });
+
   test("tracks run lifecycle transitions for success, error, and interrupt", async () => {
     const session = await createSession();
     let streamCase: "success" | "error" | "interrupt" = "success";

@@ -4,6 +4,7 @@
 
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { writeSync } from "node:fs";
 import { userInfo } from "node:os";
 import { basename } from "node:path";
 import { resolveDesktopNodeExecPath } from "./daemon/node-entrypoint-launcher.js";
@@ -44,7 +45,7 @@ export function maybeHandleShellEnvProbeLaunch(): boolean {
     return false;
   }
 
-  process.stdout.write(`${marker}${JSON.stringify(process.env)}${marker}`);
+  writeSync(process.stdout.fd, `${marker}${JSON.stringify(process.env)}${marker}`);
   return true;
 }
 

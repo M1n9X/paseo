@@ -537,6 +537,8 @@ function readTrimmedString(value: unknown): string | undefined {
 
 function toClaudeSupportedImageMimeType(mimeType: string): ClaudeSupportedImageMimeType {
   switch (mimeType) {
+    case "image/jpg":
+      return "image/jpeg";
     case "image/jpeg":
     case "image/png":
     case "image/gif":
