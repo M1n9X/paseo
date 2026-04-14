@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { generateLocalPairingOffer, loadConfig, resolvePaseoHome } from "@getpaseo/server";
 import { addJsonOption } from "../../utils/command-options.js";
+import { resolveCliDaemonConfig, resolveCliPaseoHome } from "../../utils/local-config.js";
 
 interface PairOptions {
   home?: string;
@@ -21,8 +21,9 @@ export async function runPairCommand(options: PairOptions): Promise<void> {
     process.env.PASEO_HOME = options.home;
   }
 
-  const paseoHome = resolvePaseoHome();
-  const config = loadConfig(paseoHome);
+  const paseoHome = resolveCliPaseoHome();
+  const config = resolveCliDaemonConfig(paseoHome);
+  const { generateLocalPairingOffer } = await import("@getpaseo/server/cli");
   const pairing = await generateLocalPairingOffer({
     paseoHome,
     relayEnabled: config.relayEnabled,

@@ -25,6 +25,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "typecheck:daemon": "npm run typecheck --workspace=@getpaseo/relay && npm run typecheck --workspace=@getpaseo/server && npm run typecheck --workspace=@getpaseo/cli",
     "test": "npm run test --workspaces --if-present",
+    "benchmark:regression:capture": "npm run benchmark:regression --workspace=@getpaseo/server -- capture",
+    "benchmark:regression:compare": "npm run benchmark:regression --workspace=@getpaseo/server -- compare",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "start": "npm run start --workspace=@getpaseo/server",

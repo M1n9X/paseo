@@ -281,6 +281,11 @@ export type SessionRuntimeMetrics = {
   terminalSubscriptionCount: number;
   inflightRequests: number;
   peakInflightRequests: number;
+  timelineFetchRequestCount: number;
+  timelineFetchEntriesReturned: number;
+  timelineFetchProjectedEntriesReturned: number;
+  timelineFetchBoundedRequestCount: number;
+  timelineFetchUnboundedRequestCount: number;
 };
 
 type FetchAgentsRequestMessage = Extract<SessionInboundMessage, { type: "fetch_agents_request" }>;
@@ -369,6 +374,16 @@ function summarizeFetchWorkspacesEntries(entries: Iterable<FetchWorkspacesRespon
     statusCounts: Object.fromEntries(statusCounts),
     workspaces,
   };
+}
+
+const TRACELESS_OUTBOUND_MESSAGE_TYPES = new Set<SessionOutboundMessage["type"]>(["agent_stream"]);
+
+export function getOutboundTracePayloadBytes(msg: SessionOutboundMessage): number | null {
+  if (TRACELESS_OUTBOUND_MESSAGE_TYPES.has(msg.type)) {
+    return null;
+  }
+
+  return JSON.stringify(msg).length;
 }
 
 class SessionRequestError extends Error {
@@ -658,6 +673,11 @@ export class Session {
   private nextTerminalSlot = 0;
   private inflightRequests = 0;
   private peakInflightRequests = 0;
+  private timelineFetchRequestCount = 0;
+  private timelineFetchEntriesReturned = 0;
+  private timelineFetchProjectedEntriesReturned = 0;
+  private timelineFetchBoundedRequestCount = 0;
+  private timelineFetchUnboundedRequestCount = 0;
   private readonly checkoutDiffSubscriptions = new Map<string, () => void>();
   private readonly workspaceGitSubscriptions = new Map<string, () => void>();
   private readonly registerVoiceSpeakHandler?: (
@@ -817,6 +837,11 @@ export class Session {
       terminalSubscriptionCount: this.activeTerminalStreams.size,
       inflightRequests: this.inflightRequests,
       peakInflightRequests: this.peakInflightRequests,
+      timelineFetchRequestCount: this.timelineFetchRequestCount,
+      timelineFetchEntriesReturned: this.timelineFetchEntriesReturned,
+      timelineFetchProjectedEntriesReturned: this.timelineFetchProjectedEntriesReturned,
+      timelineFetchBoundedRequestCount: this.timelineFetchBoundedRequestCount,
+      timelineFetchUnboundedRequestCount: this.timelineFetchUnboundedRequestCount,
     };
   }
 
@@ -2112,6 +2137,11 @@ export class Session {
 
   public resetPeakInflight(): void {
     this.peakInflightRequests = this.inflightRequests;
+    this.timelineFetchRequestCount = 0;
+    this.timelineFetchEntriesReturned = 0;
+    this.timelineFetchProjectedEntriesReturned = 0;
+    this.timelineFetchBoundedRequestCount = 0;
+    this.timelineFetchUnboundedRequestCount = 0;
   }
 
   public handleBinaryFrame(frame: TerminalStreamFrame): void {
@@ -6414,6 +6444,12 @@ export class Session {
     const direction: AgentTimelineFetchDirection = msg.direction ?? (msg.cursor ? "after" : "tail");
     const projection: TimelineProjectionMode = msg.projection ?? "projected";
     const requestedLimit = msg.limit;
+    this.timelineFetchRequestCount += 1;
+    if (typeof requestedLimit === "number" && requestedLimit > 0) {
+      this.timelineFetchBoundedRequestCount += 1;
+    } else {
+      this.timelineFetchUnboundedRequestCount += 1;
+    }
     const limit = requestedLimit ?? (direction === "after" ? 0 : undefined);
     const shouldLimitByProjectedWindow =
       projection === "canonical" &&
@@ -6510,6 +6546,11 @@ export class Session {
         startCursor = firstRow ? { epoch: timeline.epoch, seq: firstRow.seq } : null;
         endCursor = lastRow ? { epoch: timeline.epoch, seq: lastRow.seq } : null;
         entries = projectTimelineRows(timeline.rows, snapshot.provider, projection);
+      }
+
+      this.timelineFetchEntriesReturned += entries.length;
+      if (projection === "projected") {
+        this.timelineFetchProjectedEntriesReturned += entries.length;
       }
 
       this.emit({
@@ -7366,8 +7407,12 @@ export class Session {
    * Emit a message to the client
    */
   private emit(msg: SessionOutboundMessage): void {
+    const payloadBytes = getOutboundTracePayloadBytes(msg);
     this.sessionLogger.trace(
-      { messageType: msg.type, payloadBytes: JSON.stringify(msg).length },
+      {
+        messageType: msg.type,
+        ...(payloadBytes === null ? {} : { payloadBytes }),
+      },
       "outbound message",
     );
     if (

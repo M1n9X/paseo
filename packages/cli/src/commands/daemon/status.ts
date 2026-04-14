@@ -5,7 +5,7 @@ import {
   findExecutable,
   applyProviderEnv,
   execCommand,
-} from "@getpaseo/server";
+} from "@getpaseo/server/cli";
 import { tryConnectToDaemon } from "../../utils/client.js";
 import type { CommandOptions, ListResult, OutputSchema } from "../../output/index.js";
 import { resolveLocalDaemonState, resolveTcpHostFromListen } from "./local-daemon.js";

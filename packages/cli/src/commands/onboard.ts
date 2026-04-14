@@ -3,13 +3,6 @@ import { Command, Option } from "commander";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import {
-  generateLocalPairingOffer,
-  loadConfig,
-  loadPersistedConfig,
-  type CliConfigOverrides,
-  type PersistedConfig,
-} from "@getpaseo/server";
-import {
   resolveLocalPaseoHome,
   resolveLocalDaemonState,
   resolveTcpHostFromListen,
@@ -18,6 +11,12 @@ import {
   type DaemonStartOptions,
 } from "./daemon/local-daemon.js";
 import { tryConnectToDaemon } from "../utils/client.js";
+import {
+  loadPersistedCliConfig,
+  resolveCliDaemonConfig,
+  type CliConfigOverrides,
+  type PersistedCliConfig,
+} from "../utils/local-config.js";
 
 interface OnboardOptions extends DaemonStartOptions {
   timeout?: string;
@@ -28,16 +27,7 @@ type RawOnboardOptions = OnboardOptions & {
   allowedHosts?: string;
 };
 
-type OnboardPersistedConfig = PersistedConfig & {
-  features?: PersistedConfig["features"] & {
-    dictation?: PersistedConfig["features"] extends { dictation?: infer T }
-      ? T & { enabled?: boolean }
-      : { enabled?: boolean };
-    voiceMode?: PersistedConfig["features"] extends { voiceMode?: infer T }
-      ? T & { enabled?: boolean }
-      : { enabled?: boolean };
-  };
-};
+type OnboardPersistedConfig = PersistedCliConfig;
 
 const DEFAULT_READY_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -340,7 +330,7 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
     renderNote(paseoHome, "Paseo home");
   }
 
-  let persisted = loadPersistedConfig(paseoHome) as OnboardPersistedConfig;
+  let persisted = loadPersistedCliConfig(paseoHome) as OnboardPersistedConfig;
   const persistedVoiceSelection = resolvePersistedVoiceSelection(persisted);
   const shouldPrompt = options.voice === "ask" || options.voice === undefined;
   let voiceEnabled: boolean;
@@ -365,7 +355,7 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
   persisted = applyVoiceSelection(persisted, voiceEnabled);
   savePersistedConfig(paseoHome, persisted);
 
-  const config = loadConfig(paseoHome, { cli: toCliOverrides(options) });
+  const config = resolveCliDaemonConfig(paseoHome, { cli: toCliOverrides(options) });
 
   const voiceStatus = voiceEnabled
     ? "Voice features enabled. Local speech models will be downloaded automatically if missing."
@@ -440,6 +430,7 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
     return;
   }
 
+  const { generateLocalPairingOffer } = await import("@getpaseo/server/cli");
   const pairing = await generateLocalPairingOffer({
     paseoHome,
     relayEnabled: config.relayEnabled,

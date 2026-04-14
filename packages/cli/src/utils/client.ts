@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
-import { loadConfig, resolvePaseoHome, DaemonClient } from "@getpaseo/server";
+import { DaemonClient } from "@getpaseo/server/client";
 import path from "node:path";
 import WebSocket from "ws";
 import { getOrCreateCliClientId } from "./client-id.js";
+import { resolveCliDaemonConfig, resolveCliPaseoHome } from "./local-config.js";
 
 export interface ConnectOptions {
   host?: string;
@@ -105,13 +106,12 @@ function resolveConfiguredIpcDaemonHost(env: NodeJS.ProcessEnv, paseoHome: strin
     return pidHost;
   }
 
-  const config = loadConfig(paseoHome, { env });
-  const configuredHost = normalizeDaemonHost(config.listen);
+  const configuredHost = normalizeDaemonHost(resolveCliDaemonConfig(paseoHome, { env }).listen);
   return isIpcDaemonHost(configuredHost) ? configuredHost : null;
 }
 
 function resolveConfiguredTcpDaemonHost(env: NodeJS.ProcessEnv, paseoHome: string): string | null {
-  const configuredHost = normalizeDaemonHost(loadConfig(paseoHome, { env }).listen);
+  const configuredHost = normalizeDaemonHost(resolveCliDaemonConfig(paseoHome, { env }).listen);
   if (!isTcpDaemonHost(configuredHost)) {
     return null;
   }
@@ -119,7 +119,7 @@ function resolveConfiguredTcpDaemonHost(env: NodeJS.ProcessEnv, paseoHome: strin
 }
 
 export function resolveDefaultDaemonHosts(env: NodeJS.ProcessEnv = process.env): string[] {
-  const paseoHome = resolvePaseoHome(env);
+  const paseoHome = resolveCliPaseoHome(env);
   const candidates: string[] = [];
   const configuredIpcHost = resolveConfiguredIpcDaemonHost(env, paseoHome);
   if (configuredIpcHost) {

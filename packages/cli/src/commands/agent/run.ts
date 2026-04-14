@@ -1,9 +1,5 @@
 import { Command, Option } from "commander";
-import {
-  getStructuredAgentResponse,
-  StructuredAgentResponseError,
-  type AgentSnapshotPayload,
-} from "@getpaseo/server";
+import type { AgentSnapshotPayload } from "@getpaseo/server/client";
 import { connectToDaemon, getDaemonHost } from "../../utils/client.js";
 import type {
   CommandOptions,
@@ -413,6 +409,9 @@ export async function runRunCommand(
       };
 
       let output: Record<string, unknown>;
+      const { getStructuredAgentResponse, StructuredAgentResponseError } = await import(
+        "@getpaseo/server/cli"
+      );
       try {
         output = await getStructuredAgentResponse<Record<string, unknown>>({
           caller: callStructuredTurn,

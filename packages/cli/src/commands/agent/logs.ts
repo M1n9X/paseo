@@ -2,8 +2,8 @@ import { Command } from "commander";
 import { connectToDaemon, getDaemonHost } from "../../utils/client.js";
 import type { CommandOptions } from "../../output/index.js";
 import { fetchProjectedTimelineItems } from "../../utils/timeline.js";
-import type { DaemonClient, AgentStreamMessage, AgentTimelineItem } from "@getpaseo/server";
-import { curateAgentActivity } from "@getpaseo/server";
+import type { DaemonClient, AgentStreamMessage, AgentTimelineItem } from "@getpaseo/server/client";
+import { curateAgentActivity } from "@getpaseo/server/cli";
 
 export function addLogsOptions(cmd: Command): Command {
   return cmd
@@ -30,8 +30,9 @@ export const NO_ACTIVITY_MESSAGE = "No activity to display.";
 export async function fetchAgentTimelineItems(
   client: DaemonClient,
   agentId: string,
+  limit?: number,
 ): Promise<AgentTimelineItem[]> {
-  return fetchProjectedTimelineItems({ client, agentId });
+  return fetchProjectedTimelineItems({ client, agentId, limit });
 }
 
 export function formatAgentActivityTranscript(
@@ -114,32 +115,26 @@ export async function runLogsCommand(
     }
     const resolvedId = fetchResult.agent.id;
 
-    // For follow mode, we stream events continuously
-    if (options.follow) {
-      if (options.tail !== undefined && parseTailCount(options.tail) === undefined) {
-        console.error(`Error: Invalid --tail value: ${options.tail}`);
-        console.error("Usage: --tail <n> (where n is >= 0)");
-        await client.close().catch(() => {});
-        process.exit(1);
-      }
-      await runFollowMode(client, resolvedId, options);
-      return;
-    }
-
-    // Fetch timeline directly via cursor RPC.
-    let timelineItems = await fetchAgentTimelineItems(client, resolvedId);
-
-    // Apply filter
-    if (options.filter) {
-      timelineItems = timelineItems.filter((item) => matchesFilter(item, options.filter));
-    }
-
     const tailCount = parseTailCount(options.tail);
     if (options.tail !== undefined && tailCount === undefined) {
       console.error(`Error: Invalid --tail value: ${options.tail}`);
       console.error("Usage: --tail <n> (where n is >= 0)");
       await client.close().catch(() => {});
       process.exit(1);
+    }
+
+    // For follow mode, we stream events continuously
+    if (options.follow) {
+      await runFollowMode(client, resolvedId, options);
+      return;
+    }
+
+    // Fetch timeline directly via cursor RPC.
+    let timelineItems = await fetchAgentTimelineItems(client, resolvedId, tailCount);
+
+    // Apply filter
+    if (options.filter) {
+      timelineItems = timelineItems.filter((item) => matchesFilter(item, options.filter));
     }
 
     await client.close();
@@ -171,7 +166,8 @@ async function runFollowMode(
   const tailCount = parseTailCount(options.tail) ?? DEFAULT_FOLLOW_TAIL;
 
   // First, get existing timeline.
-  let existingItems = await fetchAgentTimelineItems(client, agentId);
+  let existingItems =
+    tailCount > 0 ? await fetchAgentTimelineItems(client, agentId, tailCount) : [];
 
   // Apply filter to existing items
   if (options.filter) {

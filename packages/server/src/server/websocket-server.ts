@@ -260,6 +260,10 @@ type WebSocketRuntimeCounters = {
   relayExternalSocketAttached: number;
   originRejected: number;
   hostRejected: number;
+  outboundMessagesSent: number;
+  outboundAgentStreamMessagesSent: number;
+  outboundAgentStreamMessagesDropped: number;
+  slowClientDropEvents: number;
 };
 
 const SLOW_REQUEST_THRESHOLD_MS = 500;
@@ -270,6 +274,7 @@ const WS_CLOSE_INVALID_HELLO = 4002;
 const WS_CLOSE_INCOMPATIBLE_PROTOCOL = 4003;
 const WS_PROTOCOL_VERSION = 1;
 const WS_RUNTIME_METRICS_FLUSH_MS = 30_000;
+const SLOW_CLIENT_STREAM_DROP_BUFFER_BYTES = 256_000;
 
 export class MissingDaemonVersionError extends Error {
   constructor() {
@@ -333,10 +338,17 @@ export class VoiceAssistantWebSocketServer {
     relayExternalSocketAttached: 0,
     originRejected: 0,
     hostRejected: 0,
+    outboundMessagesSent: 0,
+    outboundAgentStreamMessagesSent: 0,
+    outboundAgentStreamMessagesDropped: 0,
+    slowClientDropEvents: 0,
   };
   private readonly inboundMessageCounts = new Map<string, number>();
   private readonly inboundSessionRequestCounts = new Map<string, number>();
   private readonly requestLatencies = new Map<string, number[]>();
+  private outboundBytesSent = 0;
+  private maxBufferedAmountSeen = 0;
+  private readonly slowClientSocketsSeen = new Set<WebSocketLike>();
   private runtimeMetricsInterval: ReturnType<typeof setInterval> | null = null;
   private unsubscribeSpeechReadiness: (() => void) | null = null;
   private unsubscribeDaemonConfigChange: (() => void) | null = null;
@@ -481,10 +493,7 @@ export class VoiceAssistantWebSocketServer {
   public broadcast(message: WSOutboundMessage): void {
     const payload = JSON.stringify(message);
     for (const ws of this.sessions.keys()) {
-      // WebSocket.OPEN = 1
-      if (ws.readyState === 1) {
-        ws.send(payload);
-      }
+      this.sendPayloadToClient(ws, message, payload);
     }
   }
 
@@ -582,10 +591,7 @@ export class VoiceAssistantWebSocketServer {
   }
 
   private sendToClient(ws: WebSocketLike, message: WSOutboundMessage): void {
-    // WebSocket.OPEN = 1
-    if (ws.readyState === 1) {
-      ws.send(JSON.stringify(message));
-    }
+    this.sendPayloadToClient(ws, message, JSON.stringify(message));
   }
 
   private sendBinaryToClient(ws: WebSocketLike, frame: Uint8Array): void {
@@ -596,14 +602,53 @@ export class VoiceAssistantWebSocketServer {
   }
 
   private sendToConnection(connection: SessionConnection, message: WSOutboundMessage): void {
+    const payload = JSON.stringify(message);
     for (const ws of connection.sockets) {
-      this.sendToClient(ws, message);
+      this.sendPayloadToClient(ws, message, payload);
     }
   }
 
   private sendBinaryToConnection(connection: SessionConnection, frame: Uint8Array): void {
     for (const ws of connection.sockets) {
       this.sendBinaryToClient(ws, frame);
+    }
+  }
+
+  private sendPayloadToClient(
+    ws: WebSocketLike,
+    message: WSOutboundMessage,
+    payload: string,
+  ): void {
+    // WebSocket.OPEN = 1
+    if (ws.readyState !== 1) {
+      return;
+    }
+
+    const bufferedAmount = typeof ws.bufferedAmount === "number" ? ws.bufferedAmount : 0;
+    this.maxBufferedAmountSeen = Math.max(this.maxBufferedAmountSeen, bufferedAmount);
+    if (
+      bufferedAmount >= SLOW_CLIENT_STREAM_DROP_BUFFER_BYTES &&
+      isDroppableSlowClientMessage(message)
+    ) {
+      this.runtimeCounters.outboundAgentStreamMessagesDropped += 1;
+      this.runtimeCounters.slowClientDropEvents += 1;
+      this.slowClientSocketsSeen.add(ws);
+      this.logger.debug(
+        {
+          bufferedAmount,
+          threshold: SLOW_CLIENT_STREAM_DROP_BUFFER_BYTES,
+          messageType: message.type === "session" ? message.message.type : message.type,
+        },
+        "Dropping outbound message for slow client",
+      );
+      return;
+    }
+
+    ws.send(payload);
+    this.runtimeCounters.outboundMessagesSent += 1;
+    this.outboundBytesSent += Buffer.byteLength(payload);
+    if (isDroppableSlowClientMessage(message)) {
+      this.runtimeCounters.outboundAgentStreamMessagesSent += 1;
     }
   }
 
@@ -1327,6 +1372,11 @@ export class VoiceAssistantWebSocketServer {
     let terminalSubscriptionCount = 0;
     let inflightRequests = 0;
     let peakInflightRequests = 0;
+    let timelineFetchRequestCount = 0;
+    let timelineFetchEntriesReturned = 0;
+    let timelineFetchProjectedEntriesReturned = 0;
+    let timelineFetchBoundedRequestCount = 0;
+    let timelineFetchUnboundedRequestCount = 0;
 
     for (const connection of uniqueConnections) {
       const sessionMetrics = connection.session.getRuntimeMetrics();
@@ -1334,6 +1384,11 @@ export class VoiceAssistantWebSocketServer {
       terminalSubscriptionCount += sessionMetrics.terminalSubscriptionCount;
       inflightRequests += sessionMetrics.inflightRequests;
       peakInflightRequests = Math.max(peakInflightRequests, sessionMetrics.peakInflightRequests);
+      timelineFetchRequestCount += sessionMetrics.timelineFetchRequestCount;
+      timelineFetchEntriesReturned += sessionMetrics.timelineFetchEntriesReturned;
+      timelineFetchProjectedEntriesReturned += sessionMetrics.timelineFetchProjectedEntriesReturned;
+      timelineFetchBoundedRequestCount += sessionMetrics.timelineFetchBoundedRequestCount;
+      timelineFetchUnboundedRequestCount += sessionMetrics.timelineFetchUnboundedRequestCount;
       connection.session.resetPeakInflight();
     }
 
@@ -1343,6 +1398,11 @@ export class VoiceAssistantWebSocketServer {
       terminalSubscriptionCount,
       inflightRequests,
       peakInflightRequests,
+      timelineFetchRequestCount,
+      timelineFetchEntriesReturned,
+      timelineFetchProjectedEntriesReturned,
+      timelineFetchBoundedRequestCount,
+      timelineFetchUnboundedRequestCount,
     };
   }
 
@@ -1374,6 +1434,15 @@ export class VoiceAssistantWebSocketServer {
           pendingConnections,
         },
         counters: { ...this.runtimeCounters },
+        outbound: {
+          sentMessages: this.runtimeCounters.outboundMessagesSent,
+          sentAgentStreamMessages: this.runtimeCounters.outboundAgentStreamMessagesSent,
+          droppedAgentStreamMessages: this.runtimeCounters.outboundAgentStreamMessagesDropped,
+          slowClientDropEvents: this.runtimeCounters.slowClientDropEvents,
+          slowClientSocketsSeen: this.slowClientSocketsSeen.size,
+          sentBytes: this.outboundBytesSent,
+          maxBufferedAmountSeen: this.maxBufferedAmountSeen,
+        },
         inboundMessageTypesTop: this.getTopCounts(this.inboundMessageCounts, 12),
         inboundSessionRequestTypesTop: this.getTopCounts(this.inboundSessionRequestCounts, 20),
         runtime: sessionMetrics,
@@ -1391,6 +1460,9 @@ export class VoiceAssistantWebSocketServer {
     this.inboundMessageCounts.clear();
     this.inboundSessionRequestCounts.clear();
     this.requestLatencies.clear();
+    this.outboundBytesSent = 0;
+    this.maxBufferedAmountSeen = 0;
+    this.slowClientSocketsSeen.clear();
     this.runtimeWindowStartedAt = now;
   }
 
@@ -1567,4 +1639,8 @@ function extractRequestInfoFromUnknownWsInbound(
   }
 
   return null;
+}
+
+function isDroppableSlowClientMessage(message: WSOutboundMessage): boolean {
+  return message.type === "session" && message.message.type === "agent_stream";
 }

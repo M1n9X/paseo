@@ -2,8 +2,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { loadConfig, resolvePaseoHome } from "@getpaseo/server";
 import { tryConnectToDaemon } from "../../utils/client.js";
+import { resolveCliDaemonConfig, resolveCliPaseoHome } from "../../utils/local-config.js";
 
 export interface DaemonStartOptions {
   port?: string;
@@ -287,7 +287,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function resolveLocalPaseoHome(home?: string): string {
-  return resolvePaseoHome(envWithHome(home));
+  return resolveCliPaseoHome(envWithHome(home));
 }
 
 export function resolveTcpHostFromListen(listen: string): string | null {
@@ -325,8 +325,8 @@ export function resolveLocalDaemonState(options: { home?: string } = {}): LocalD
     PASEO_HOSTNAMES: undefined,
     PASEO_ALLOWED_HOSTS: undefined,
   };
-  const home = resolvePaseoHome(env);
-  const config = loadConfig(home, { env });
+  const home = resolveCliPaseoHome(env);
+  const config = resolveCliDaemonConfig(home, { env });
   const pidPath = pidFilePath(home);
   const logPath = path.join(home, DAEMON_LOG_FILENAME);
   const pidInfo = existsSync(pidPath) ? readPidFile(pidPath) : null;
@@ -358,7 +358,7 @@ export async function startLocalDaemonDetached(
 
   const childEnv = buildChildEnv(options);
 
-  const paseoHome = resolvePaseoHome(childEnv);
+  const paseoHome = resolveCliPaseoHome(childEnv);
   const logPath = path.join(paseoHome, DAEMON_LOG_FILENAME);
   const daemonRunnerEntry = resolveDaemonRunnerEntry();
   const child = spawn(

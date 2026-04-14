@@ -12,11 +12,25 @@ import type {
   AgentStreamMessage,
   AgentStreamEventPayload,
   AgentTimelineItem,
-} from "@getpaseo/server";
+} from "@getpaseo/server/client";
 
 export interface AgentAttachOptions {
   host?: string;
   [key: string]: unknown;
+}
+
+export const ATTACH_INITIAL_TAIL_COUNT = 40;
+
+export async function fetchAttachTimelineItems(
+  client: DaemonClient,
+  agentId: string,
+  limit = ATTACH_INITIAL_TAIL_COUNT,
+): Promise<AgentTimelineItem[]> {
+  return fetchProjectedTimelineItems({
+    client,
+    agentId,
+    limit,
+  });
 }
 
 /**
@@ -139,10 +153,7 @@ export async function runAttachCommand(
 
     // Print existing output from timeline fetch.
     try {
-      const timelineItems = await fetchProjectedTimelineItems({
-        client,
-        agentId: resolvedId,
-      });
+      const timelineItems = await fetchAttachTimelineItems(client, resolvedId);
       for (const item of timelineItems) {
         printTimelineItem(item);
       }

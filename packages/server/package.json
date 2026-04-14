@@ -23,6 +23,20 @@
         "./src/server/exports.ts"
       ]
     },
+    "./client": {
+      "types": "./dist/server/server/client-exports.d.ts",
+      "default": [
+        "./dist/server/server/client-exports.js",
+        "./src/server/client-exports.ts"
+      ]
+    },
+    "./cli": {
+      "types": "./dist/server/server/cli-exports.d.ts",
+      "default": [
+        "./dist/server/server/cli-exports.js",
+        "./src/server/cli-exports.ts"
+      ]
+    },
     "./utils/tool-call-parsers": {
       "types": "./dist/server/utils/tool-call-parsers.d.ts",
       "default": [
@@ -45,6 +59,10 @@
     "speech:download": "tsx scripts/download-speech-models.ts",
     "speech:tts:matrix": "tsx scripts/generate-sherpa-tts-matrix.ts",
     "speech:transcribe:local": "tsx scripts/transcribe-local-wav.ts",
+    "benchmark:cli-startup": "tsx scripts/benchmark-cli-startup.ts",
+    "benchmark:timeline-fetch": "tsx scripts/benchmark-timeline-fetch.ts",
+    "benchmark:compare": "tsx scripts/compare-benchmark-results.ts",
+    "benchmark:regression": "tsx scripts/benchmark-regression.ts",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run --exclude \"**/*.e2e.test.ts\"",
     "test:integration": "vitest run --maxWorkers=1 --minWorkers=1 src/server/daemon-e2e/models.e2e.test.ts src/server/daemon-e2e/live-preferences.e2e.test.ts src/server/agent/model-catalog.e2e.test.ts",

@@ -31,7 +31,7 @@ export interface AgentWaitOptions extends CommandOptions {
   host?: string;
 }
 
-const WAIT_ACTIVITY_PREVIEW_COUNT = 5;
+export const WAIT_ACTIVITY_PREVIEW_COUNT = 5;
 
 function appendRecentActivity(message: string, transcript: string | null): string {
   if (!transcript || transcript.trim().length === 0) {
@@ -41,12 +41,16 @@ function appendRecentActivity(message: string, transcript: string | null): strin
   return `${message}\nLast ${WAIT_ACTIVITY_PREVIEW_COUNT} activity items:\n${transcript}`;
 }
 
-async function getRecentActivityTranscript(
+export async function getRecentActivityTranscript(
   client: Awaited<ReturnType<typeof connectToDaemon>>,
   agentId: string,
 ): Promise<string | null> {
   try {
-    const timelineItems = await fetchAgentTimelineItems(client, agentId);
+    const timelineItems = await fetchAgentTimelineItems(
+      client,
+      agentId,
+      WAIT_ACTIVITY_PREVIEW_COUNT,
+    );
     return formatAgentActivityTranscript(timelineItems, WAIT_ACTIVITY_PREVIEW_COUNT);
   } catch {
     return null;
