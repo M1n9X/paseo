@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 console.log("📋 Phase 33: Startup Import Tests\n");
 
@@ -43,9 +42,7 @@ await writeFile(
   "utf8",
 );
 
-const clientUtilsModule = await import(
-  pathToFileURL(path.join(process.cwd(), "packages/cli/src/utils/client.ts")).href
-);
+const clientUtilsModule = await import(new URL("../src/utils/client.ts", import.meta.url).href);
 const hosts = clientUtilsModule.resolveDefaultDaemonHosts({
   ...process.env,
   PASEO_HOME: tempHome,

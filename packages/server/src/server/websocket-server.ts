@@ -1642,5 +1642,9 @@ function extractRequestInfoFromUnknownWsInbound(
 }
 
 function isDroppableSlowClientMessage(message: WSOutboundMessage): boolean {
-  return message.type === "session" && message.message.type === "agent_stream";
+  return (
+    message.type === "session" &&
+    message.message.type === "agent_stream" &&
+    message.message.payload.event.type === "timeline"
+  );
 }

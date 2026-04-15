@@ -154,6 +154,49 @@ describe("VoiceAssistantWebSocketServer slow-client handling", () => {
     expect(socket.sent).toHaveLength(0);
   });
 
+  it("preserves agent stream control events for backed-up clients", () => {
+    const { server } = createServer();
+    const socket = new MockSocket();
+    socket.bufferedAmount = 512_000;
+
+    (server as any).sendToClient(
+      socket,
+      wrapSessionMessage({
+        type: "agent_stream",
+        payload: {
+          agentId: "agent-1",
+          event: {
+            type: "turn_started",
+            provider: "claude",
+          },
+          timestamp: "2026-04-14T00:00:00.000Z",
+        },
+      }),
+    );
+
+    (server as any).sendToClient(
+      socket,
+      wrapSessionMessage({
+        type: "agent_stream",
+        payload: {
+          agentId: "agent-1",
+          event: {
+            type: "attention_required",
+            provider: "claude",
+            reason: "permission",
+            timestamp: "2026-04-14T00:00:00.500Z",
+            shouldNotify: true,
+          },
+          timestamp: "2026-04-14T00:00:00.500Z",
+        },
+      }),
+    );
+
+    expect(socket.sent).toHaveLength(2);
+    expect(String(socket.sent[0])).toContain('"type":"turn_started"');
+    expect(String(socket.sent[1])).toContain('"type":"attention_required"');
+  });
+
   it("still sends rpc/status messages for backed-up clients", () => {
     const { server } = createServer();
     const socket = new MockSocket();

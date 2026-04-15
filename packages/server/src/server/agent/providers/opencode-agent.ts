@@ -9,6 +9,7 @@ import {
   type TextPartInput as OpenCodeTextPartInput,
 } from "@opencode-ai/sdk/v2/client";
 import net from "node:net";
+import os from "node:os";
 import type { Logger } from "pino";
 import { z } from "zod";
 
@@ -78,6 +79,9 @@ const DEFAULT_MODES: AgentMode[] = [
 
 type OpenCodeAgentConfig = AgentSessionConfig & { provider: "opencode" };
 type OpenCodeMessageRole = "user" | "assistant";
+type OpenCodeProviderListResponse = Awaited<
+  ReturnType<ReturnType<typeof createOpencodeClient>["provider"]["list"]>
+>;
 
 type OpenCodeMcpConfig =
   | {
@@ -374,6 +378,25 @@ async function findAvailablePort(): Promise<number> {
     });
     server.on("error", reject);
   });
+}
+
+async function listOpenCodeProvidersWithTimeout(
+  client: OpencodeClient,
+  directory: string,
+): Promise<OpenCodeProviderListResponse> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(
+      () =>
+        reject(
+          new Error(
+            `OpenCode provider.list timed out after ${OPENCODE_PROVIDER_LIST_TIMEOUT_MS / 1000}s - server may not be authenticated or connected to any providers`,
+          ),
+        ),
+      OPENCODE_PROVIDER_LIST_TIMEOUT_MS,
+    );
+  });
+
+  return await Promise.race([client.provider.list({ directory }), timeoutPromise]);
 }
 
 function resolvePartDedupeKey(
@@ -927,71 +950,102 @@ export class OpenCodeAgentClient implements AgentClient {
 
   async listModels(options?: ListModelsOptions): Promise<AgentModelDefinition[]> {
     const { url } = await this.serverManager.ensureRunning();
-    const client = createOpencodeClient({
-      baseUrl: url,
-      directory: options?.cwd ?? process.cwd(),
-    });
+    const requestedDirectory = options?.cwd ?? process.cwd();
+    const fallbackDirectory = options?.cwd ? null : os.tmpdir();
+    const discoveryDirectories = [
+      requestedDirectory,
+      ...(fallbackDirectory && fallbackDirectory !== requestedDirectory ? [fallbackDirectory] : []),
+    ];
 
-    // Background model discovery can be legitimately slow while OpenCode refreshes
-    // provider state, so allow longer than turn execution paths.
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(
-        () =>
-          reject(
-            new Error(
-              `OpenCode provider.list timed out after ${OPENCODE_PROVIDER_LIST_TIMEOUT_MS / 1000}s - server may not be authenticated or connected to any providers`,
-            ),
-          ),
-        OPENCODE_PROVIDER_LIST_TIMEOUT_MS,
-      );
-    });
+    for (let index = 0; index < discoveryDirectories.length; index += 1) {
+      const directory = discoveryDirectories[index]!;
+      const hasFallback = index < discoveryDirectories.length - 1;
+      const client = createOpencodeClient({
+        baseUrl: url,
+        directory,
+      });
 
-    const response = await Promise.race([
-      client.provider.list({ directory: options?.cwd ?? process.cwd() }),
-      timeoutPromise,
-    ]);
+      try {
+        const response = await listOpenCodeProvidersWithTimeout(client, directory);
+        const responseError = "error" in response ? response.error : undefined;
+        if (responseError) {
+          if (hasFallback) {
+            this.logger.warn(
+              {
+                directory,
+                fallbackDirectory: discoveryDirectories[index + 1],
+                error: stringifyUnknownError(responseError),
+              },
+              "OpenCode provider discovery failed in working directory; retrying from fallback directory",
+            );
+            continue;
+          }
+          throw new Error(`Failed to fetch OpenCode providers: ${JSON.stringify(responseError)}`);
+        }
 
-    if (response.error) {
-      throw new Error(`Failed to fetch OpenCode providers: ${JSON.stringify(response.error)}`);
-    }
+        const providers = "data" in response ? response.data : undefined;
+        if (!providers) {
+          return [];
+        }
 
-    const providers = response.data;
-    if (!providers) {
-      return [];
-    }
+        // Only include models from connected providers (ones that are actually available)
+        const connectedProviderIds = new Set(providers.connected);
 
-    // Only include models from connected providers (ones that are actually available)
-    const connectedProviderIds = new Set(providers.connected);
-
-    // Fail fast if no providers are connected
-    if (connectedProviderIds.size === 0) {
-      throw new Error(
-        "OpenCode has no connected providers. Please authenticate with at least one provider (e.g., openai, anthropic) or set appropriate environment variables (e.g., OPENAI_API_KEY).",
-      );
-    }
-
-    const models: AgentModelDefinition[] = [];
-    this.modelContextWindows.clear();
-    for (const provider of providers.all) {
-      // Skip providers that aren't connected/configured
-      if (!connectedProviderIds.has(provider.id)) {
-        continue;
-      }
-
-      for (const [modelId, model] of Object.entries(provider.models)) {
-        const definition = buildOpenCodeModelDefinition(provider, modelId, model);
-        const contextWindowMaxTokens = extractOpenCodeModelContextWindow(model);
-        if (contextWindowMaxTokens !== undefined) {
-          this.modelContextWindows.set(
-            buildOpenCodeModelLookupKey(provider.id, modelId),
-            contextWindowMaxTokens,
+        if (connectedProviderIds.size === 0) {
+          if (hasFallback) {
+            this.logger.warn(
+              {
+                directory,
+                fallbackDirectory: discoveryDirectories[index + 1],
+              },
+              "OpenCode provider discovery returned no connected providers; retrying from fallback directory",
+            );
+            continue;
+          }
+          throw new Error(
+            "OpenCode has no connected providers. Please authenticate with at least one provider (e.g., openai, anthropic) or set appropriate environment variables (e.g., OPENAI_API_KEY).",
           );
         }
-        models.push(definition);
+
+        const models: AgentModelDefinition[] = [];
+        this.modelContextWindows.clear();
+        for (const provider of providers.all) {
+          // Skip providers that aren't connected/configured
+          if (!connectedProviderIds.has(provider.id)) {
+            continue;
+          }
+
+          for (const [modelId, model] of Object.entries(provider.models)) {
+            const definition = buildOpenCodeModelDefinition(provider, modelId, model);
+            const contextWindowMaxTokens = extractOpenCodeModelContextWindow(model);
+            if (contextWindowMaxTokens !== undefined) {
+              this.modelContextWindows.set(
+                buildOpenCodeModelLookupKey(provider.id, modelId),
+                contextWindowMaxTokens,
+              );
+            }
+            models.push(definition);
+          }
+        }
+
+        return models;
+      } catch (error) {
+        if (hasFallback) {
+          this.logger.warn(
+            {
+              directory,
+              fallbackDirectory: discoveryDirectories[index + 1],
+              error: normalizeTurnFailureError(error),
+            },
+            "OpenCode provider discovery threw in working directory; retrying from fallback directory",
+          );
+          continue;
+        }
+        throw error;
       }
     }
 
-    return models;
+    throw new Error("OpenCode provider discovery failed without a usable fallback directory");
   }
 
   async listModes(options?: ListModesOptions): Promise<AgentMode[]> {

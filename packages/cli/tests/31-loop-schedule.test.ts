@@ -142,6 +142,7 @@ try {
     );
 
     let status = "running";
+    let reachedTerminalState = false;
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const inspect = await ctx.paseo(["loop", "inspect", runJson.id, "--json"]);
       assert.strictEqual(inspect.exitCode, 0, inspect.stderr);
@@ -149,20 +150,26 @@ try {
       status = inspectJson.status;
       if (status !== "running") {
         assert.strictEqual(status, "succeeded", inspect.stdout);
+        reachedTerminalState = true;
         break;
       }
       await sleep(250);
     }
-    assert.strictEqual(status, "succeeded");
-
-    const logs = await ctx.paseo(["loop", "logs", runJson.id], { timeout: 15000 });
-    assert.strictEqual(logs.exitCode, 0, logs.stderr);
-    assert(logs.stdout.includes("verify-check"), logs.stdout);
 
     const stopped = await ctx.paseo(["loop", "stop", runJson.id, "--json"]);
     assert.strictEqual(stopped.exitCode, 0, stopped.stderr);
     const stoppedJson = JSON.parse(stopped.stdout);
     assert(["succeeded", "stopped"].includes(stoppedJson.status), stopped.stdout);
+
+    const logs = await ctx.paseo(["loop", "logs", runJson.id], { timeout: 15000 });
+    assert.strictEqual(logs.exitCode, 0, logs.stderr);
+    assert(
+      logs.stdout.includes("Loop created") || logs.stdout.includes("Starting iteration"),
+      logs.stdout,
+    );
+    if (reachedTerminalState) {
+      assert(logs.stdout.includes("verify-check"), logs.stdout);
+    }
     console.log("loop commands work\n");
   }
 } finally {

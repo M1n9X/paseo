@@ -1,20 +1,13 @@
-import { describe, expect, test } from "vitest";
-import { execFileSync } from "node:child_process";
+import { beforeAll, beforeEach, describe, expect, test } from "vitest";
 
 import type { AgentModelDefinition } from "../agent-sdk-types.js";
 import { createDaemonTestContext } from "../test-utils/index.js";
-
-function isBinaryInstalled(binary: string): boolean {
-  try {
-    const out = execFileSync("which", [binary], { encoding: "utf8" }).trim();
-    return out.length > 0;
-  } catch {
-    return false;
-  }
-}
+import {
+  isBinaryInstalled,
+  probeOpenCodeModelCatalog,
+} from "../test-utils/opencode-availability.js";
 
 const hasCodex = isBinaryInstalled("codex");
-const hasOpenCode = isBinaryInstalled("opencode");
 
 function modelMatchesFamily(model: AgentModelDefinition, family: "sonnet" | "haiku"): boolean {
   const haystacks = [model.id, model.label, model.description ?? ""].map((value) =>
@@ -24,6 +17,12 @@ function modelMatchesFamily(model: AgentModelDefinition, family: "sonnet" | "hai
 }
 
 describe("provider model catalogs (e2e)", () => {
+  let hasUsableOpenCodeCatalog = false;
+
+  beforeAll(async () => {
+    hasUsableOpenCodeCatalog = (await probeOpenCodeModelCatalog()) !== null;
+  }, 60_000);
+
   test("Claude catalog exposes Sonnet and Haiku variants", async () => {
     const ctx = await createDaemonTestContext();
     try {
@@ -56,9 +55,14 @@ describe("provider model catalogs (e2e)", () => {
     180_000,
   );
 
-  test.runIf(hasOpenCode)(
-    "OpenCode catalog returns models from multiple providers",
-    async () => {
+  describe("OpenCode catalog", () => {
+    beforeEach((context) => {
+      if (!hasUsableOpenCodeCatalog) {
+        context.skip();
+      }
+    });
+
+    test("returns models from multiple providers", async () => {
       const ctx = await createDaemonTestContext();
       try {
         const result = await ctx.client.listProviderModels("opencode");
@@ -80,7 +84,6 @@ describe("provider model catalogs (e2e)", () => {
       } finally {
         await ctx.cleanup();
       }
-    },
-    180_000,
-  );
+    }, 180_000);
+  });
 });

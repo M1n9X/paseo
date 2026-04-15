@@ -10,7 +10,7 @@ import {
 
 describe("benchmark regression workflow", () => {
   test("repo root exposes capture and compare aliases", async () => {
-    const packageJsonPath = path.resolve(process.cwd(), "package.json");
+    const packageJsonPath = new URL("../../../../package.json", import.meta.url);
     const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
       scripts?: Record<string, string>;
     };
@@ -159,7 +159,7 @@ describe("benchmark regression workflow", () => {
             meanMs: 90,
             minMs: 90,
             maxMs: 90,
-                peakRssBytes: 1000,
+            peakRssBytes: 1000,
           },
         ],
       }),

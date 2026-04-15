@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   existsSync,
   mkdtempSync,
@@ -27,6 +27,7 @@ import type {
   UserMessageTimelineItem,
   AgentTimelineItem,
 } from "../agent-sdk-types.js";
+import { probeOpenCodeModelCatalog } from "../../test-utils/opencode-availability.js";
 
 function tmpCwd(): string {
   const dir = mkdtempSync(path.join(os.tmpdir(), "opencode-agent-test-"));
@@ -86,31 +87,27 @@ async function collectTurnEvents(iterator: AsyncGenerator<AgentStreamEvent>): Pr
   return result;
 }
 
-function isBinaryInstalled(binary: string): boolean {
-  try {
-    const out = execFileSync("which", [binary], { encoding: "utf8" }).trim();
-    return out.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-const hasOpenCode = isBinaryInstalled("opencode");
-
-(hasOpenCode ? describe : describe.skip)("OpenCodeAgentClient", () => {
+describe("OpenCodeAgentClient", () => {
   const logger = createTestLogger();
   const buildConfig = (cwd: string): AgentSessionConfig => ({
     provider: "opencode",
     cwd,
     model: TEST_MODEL,
   });
+  let openCodeModelsAvailable = false;
 
   beforeAll(async () => {
     const startTime = Date.now();
     logger.info("beforeAll: Starting model selection");
 
-    const client = new OpenCodeAgentClient(logger);
-    const models = await client.listModels();
+    const models = await probeOpenCodeModelCatalog();
+    if (!models || models.length === 0) {
+      logger.warn(
+        "beforeAll: Skipping OpenCode integration tests because model catalog is unavailable",
+      );
+      return;
+    }
+    openCodeModelsAvailable = true;
 
     logger.info(
       { modelCount: models.length, elapsed: Date.now() - startTime },
@@ -144,6 +141,12 @@ const hasOpenCode = isBinaryInstalled("opencode");
       "beforeAll: Selected OpenCode test model",
     );
   }, 30_000);
+
+  beforeEach((context) => {
+    if (!openCodeModelsAvailable || !TEST_MODEL) {
+      context.skip();
+    }
+  });
 
   test("creates a session with valid id and provider", async () => {
     const cwd = tmpCwd();

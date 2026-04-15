@@ -1,20 +1,19 @@
-import { describe, test, expect } from "vitest";
-import { execFileSync } from "node:child_process";
+import { beforeAll, beforeEach, describe, test, expect } from "vitest";
 import { createDaemonTestContext } from "../test-utils/index.js";
-
-function isBinaryInstalled(binary: string): boolean {
-  try {
-    const out = execFileSync("which", [binary], { encoding: "utf8" }).trim();
-    return out.length > 0;
-  } catch {
-    return false;
-  }
-}
+import {
+  isBinaryInstalled,
+  probeOpenCodeModelCatalog,
+} from "../test-utils/opencode-availability.js";
 
 const hasCodex = isBinaryInstalled("codex");
-const hasOpenCode = isBinaryInstalled("opencode");
 
 describe("daemon E2E", () => {
+  let hasUsableOpenCodeCatalog = false;
+
+  beforeAll(async () => {
+    hasUsableOpenCodeCatalog = (await probeOpenCodeModelCatalog()) !== null;
+  }, 60_000);
+
   describe("listProviderModels", () => {
     test.runIf(hasCodex)(
       "returns model list for Codex provider",
@@ -70,9 +69,14 @@ describe("daemon E2E", () => {
       }
     }, 180000);
 
-    test.runIf(hasOpenCode)(
-      "returns model list for OpenCode provider",
-      async () => {
+    describe("OpenCode provider", () => {
+      beforeEach((context) => {
+        if (!hasUsableOpenCodeCatalog) {
+          context.skip();
+        }
+      });
+
+      test("returns model list for OpenCode provider", async () => {
         const ctx = await createDaemonTestContext();
         try {
           const result = await ctx.client.listProviderModels("opencode");
@@ -91,8 +95,7 @@ describe("daemon E2E", () => {
         } finally {
           await ctx.cleanup();
         }
-      },
-      60000,
-    );
+      }, 60000);
+    });
   });
 });

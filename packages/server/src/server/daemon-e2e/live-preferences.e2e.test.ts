@@ -1,10 +1,13 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { describe, test, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
-import { execFileSync } from "node:child_process";
 import { createDaemonTestContext, type DaemonTestContext } from "../test-utils/index.js";
 import type { AgentSnapshotPayload, SessionOutboundMessage } from "../messages.js";
+import {
+  isBinaryInstalled,
+  probeOpenCodeModelCatalog,
+} from "../test-utils/opencode-availability.js";
 
 function tmpCwd(): string {
   return mkdtempSync(path.join(tmpdir(), "daemon-e2e-"));
@@ -47,22 +50,17 @@ function pickTwoDistinctModels(models: Array<{ id: string }>): [string, string] 
   return [ids[0]!, ids[1]!];
 }
 
-function isBinaryInstalled(binary: string): boolean {
-  try {
-    const out = execFileSync("which", [binary], { encoding: "utf8" }).trim();
-    return out.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 const hasCodex = isBinaryInstalled("codex");
-const hasOpenCode = isBinaryInstalled("opencode");
 
 describe("daemon E2E", () => {
   let ctx: DaemonTestContext;
   let messages: SessionOutboundMessage[] = [];
   let unsubscribe: (() => void) | null = null;
+  let hasUsableOpenCodeCatalog = false;
+
+  beforeAll(async () => {
+    hasUsableOpenCodeCatalog = (await probeOpenCodeModelCatalog()) !== null;
+  }, 60_000);
 
   beforeEach(async () => {
     ctx = await createDaemonTestContext();
@@ -84,9 +82,13 @@ describe("daemon E2E", () => {
     "opencode",
   ] as const)("live model switching (%s)", (provider) => {
     const shouldRun =
-      provider === "claude" ||
-      (provider === "codex" && hasCodex) ||
-      (provider === "opencode" && hasOpenCode);
+      provider === "claude" || (provider === "codex" && hasCodex) || provider === "opencode";
+
+    beforeEach((context) => {
+      if (provider === "opencode" && !hasUsableOpenCodeCatalog) {
+        context.skip();
+      }
+    });
 
     test.runIf(shouldRun)(
       "updates agent model without restarting",
@@ -205,9 +207,14 @@ describe("daemon E2E", () => {
     120000,
   );
 
-  test.runIf(hasOpenCode)(
-    "live thinking switching works for OpenCode",
-    async () => {
+  describe("OpenCode live thinking switching", () => {
+    beforeEach((context) => {
+      if (!hasUsableOpenCodeCatalog) {
+        context.skip();
+      }
+    });
+
+    test("works for OpenCode", async () => {
       const cwd = tmpCwd();
       try {
         const modelList = await ctx.client.listProviderModels("opencode");
@@ -249,7 +256,6 @@ describe("daemon E2E", () => {
       } finally {
         rmSync(cwd, { recursive: true, force: true });
       }
-    },
-    180000,
-  );
+    }, 180000);
+  });
 });

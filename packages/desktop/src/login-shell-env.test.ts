@@ -104,6 +104,14 @@ describe("login-shell-env", () => {
 
     expect(
       getShellEnvProbeMarker([
+        "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
+        "-p",
+        "'123456781234' + JSON.stringify(process.env) + '123456781234'",
+      ]),
+    ).toBe("123456781234");
+
+    expect(
+      getShellEnvProbeMarker([
         "/Applications/Paseo.app/Contents/MacOS/Paseo",
         "--open-project",
         "/tmp/project",
@@ -118,6 +126,22 @@ describe("login-shell-env", () => {
       "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
       "-p",
       '"123456781234" + JSON.stringify(process.env) + "123456781234"',
+    ];
+
+    expect(maybeHandleShellEnvProbeLaunch()).toBe(true);
+    expect(writeSyncMock).toHaveBeenCalledWith(
+      process.stdout.fd,
+      expect.stringContaining("123456781234"),
+    );
+  });
+
+  it("recognizes PowerShell-style single-quoted probe launches", async () => {
+    const { maybeHandleShellEnvProbeLaunch } = await import("./login-shell-env");
+
+    process.argv = [
+      "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
+      "-p",
+      "'123456781234' + JSON.stringify(process.env) + '123456781234'",
     ];
 
     expect(maybeHandleShellEnvProbeLaunch()).toBe(true);

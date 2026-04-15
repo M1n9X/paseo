@@ -11,7 +11,7 @@ import { resolveDesktopNodeExecPath } from "./daemon/node-entrypoint-launcher.js
 
 const RESOLVE_TIMEOUT_MS = 10_000;
 const SHELL_ENV_PROBE_ARG = "-p";
-const SHELL_ENV_PROBE_PATTERN = /^"([^"]+)" \+ JSON\.stringify\(process\.env\) \+ "\1"$/;
+const SHELL_ENV_PROBE_PATTERN = /^(['"])([^'"]+)\1 \+ JSON\.stringify\(process\.env\) \+ \1\2\1$/;
 
 function getSystemShell(): string {
   const shell = process.env.SHELL;
@@ -36,7 +36,7 @@ export function getShellEnvProbeMarker(argv: string[]): string | null {
   }
 
   const match = SHELL_ENV_PROBE_PATTERN.exec(expression.trim());
-  return match?.[1] ?? null;
+  return match?.[2] ?? null;
 }
 
 export function maybeHandleShellEnvProbeLaunch(): boolean {

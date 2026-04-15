@@ -48,6 +48,11 @@ export function formatAgentActivityTranscript(
   );
 }
 
+type LogTimelineSelectionOptions = {
+  filter?: string;
+  tailCount?: number;
+};
+
 function parseTailCount(raw: string | undefined): number | undefined {
   if (raw === undefined) return undefined;
   const parsed = Number.parseInt(raw, 10);
@@ -55,6 +60,14 @@ function parseTailCount(raw: string | undefined): number | undefined {
     return undefined;
   }
   return parsed;
+}
+
+export function getLogTimelineFetchLimit(options: LogTimelineSelectionOptions): number | undefined {
+  if (options.tailCount === 0) {
+    return 0;
+  }
+
+  return options.filter ? undefined : options.tailCount;
 }
 
 /**
@@ -80,6 +93,21 @@ function matchesFilter(item: AgentTimelineItem, filter?: string): boolean {
       // If filter doesn't match predefined types, match against the actual type
       return type.includes(filterLower);
   }
+}
+
+export function selectLogTimelineItems(
+  timelineItems: AgentTimelineItem[],
+  options: LogTimelineSelectionOptions,
+): AgentTimelineItem[] {
+  const filteredItems = options.filter
+    ? timelineItems.filter((item) => matchesFilter(item, options.filter))
+    : timelineItems;
+
+  if (options.tailCount === undefined) {
+    return filteredItems;
+  }
+
+  return filteredItems.slice(-options.tailCount);
 }
 
 export async function runLogsCommand(
@@ -130,12 +158,15 @@ export async function runLogsCommand(
     }
 
     // Fetch timeline directly via cursor RPC.
-    let timelineItems = await fetchAgentTimelineItems(client, resolvedId, tailCount);
-
-    // Apply filter
-    if (options.filter) {
-      timelineItems = timelineItems.filter((item) => matchesFilter(item, options.filter));
-    }
+    let timelineItems = await fetchAgentTimelineItems(
+      client,
+      resolvedId,
+      getLogTimelineFetchLimit({ filter: options.filter, tailCount }),
+    );
+    timelineItems = selectLogTimelineItems(timelineItems, {
+      filter: options.filter,
+      tailCount,
+    });
 
     await client.close();
 
@@ -144,7 +175,7 @@ export async function runLogsCommand(
       return;
     }
 
-    const transcript = formatAgentActivityTranscript(timelineItems, tailCount);
+    const transcript = formatAgentActivityTranscript(timelineItems);
     console.log(transcript);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -167,16 +198,21 @@ async function runFollowMode(
 
   // First, get existing timeline.
   let existingItems =
-    tailCount > 0 ? await fetchAgentTimelineItems(client, agentId, tailCount) : [];
-
-  // Apply filter to existing items
-  if (options.filter) {
-    existingItems = existingItems.filter((item) => matchesFilter(item, options.filter));
-  }
+    tailCount > 0
+      ? await fetchAgentTimelineItems(
+          client,
+          agentId,
+          getLogTimelineFetchLimit({ filter: options.filter, tailCount }),
+        )
+      : [];
+  existingItems = selectLogTimelineItems(existingItems, {
+    filter: options.filter,
+    tailCount,
+  });
 
   // Print existing transcript (tail-like behavior)
   if (tailCount > 0) {
-    const existingTranscript = formatAgentActivityTranscript(existingItems, tailCount);
+    const existingTranscript = formatAgentActivityTranscript(existingItems);
     if (existingTranscript !== NO_ACTIVITY_MESSAGE) {
       console.log(existingTranscript);
     }
