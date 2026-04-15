@@ -73,7 +73,7 @@ function toCliOverrides(options: OnboardOptions): CliConfigOverrides {
 
   if (options.hostnames) {
     const raw = options.hostnames.trim();
-    cliOverrides.hostnames =
+    cliOverrides.allowedHosts =
       raw.toLowerCase() === "true"
         ? true
         : raw
