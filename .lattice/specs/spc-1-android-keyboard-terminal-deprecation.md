@@ -11,7 +11,7 @@ created: 2026-09-03
 updated: 2026-09-03
 tickets: []
 prs: []
-reviews: []
+reviews: [rev-20260903-072418Z]
 supersedes: []
 superseded_by: null
 ---
