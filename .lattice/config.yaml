@@ -1,0 +1,21 @@
+# Lattice consumer config. Safe to commit.
+# profile: strict (default) | light
+#   strict — sibling worktree default for shippable; alignment HARD on open Acceptance
+#   light  — shippable --mode branch allowed; alignment softens Acceptance HARD → WARN
+#            bind law still requires tkt-/spc- (no unbound)
+# Override for one shell: export LATTICE_PROFILE=light
+# long_lived_patterns: [integration, trunk]   # additive to main/master/dev/develop/release/*/rc/*
+# batch-work tunables (flat keys; all DEFAULT — absent = defaults shown):
+# batch_timebox_S: 30        # per-ticket wall-clock timebox, minutes, mode S
+# batch_timebox_M: 60        # mode M
+# batch_timebox_C: 120       # mode C
+# batch_fuse_threshold: 50   # layer failed+stuck percentage that trips the fuse
+# verify-features runtime bounds (spc-104; verify-features SKILL.md INVARIANT 4 —
+# bounded passes stop and report rather than running open-ended). Absent = defaults:
+# verify_features_crawl_pages: 20   # max same-origin pages mined per inventory crawl
+# verify_features_stories_per_wave: 12  # max stories executed per wave
+# verify_features_wave_max: 2          # max waves per invocation
+# verify_features_flaky_retry: 1       # max retries on a flaky story before blocked
+# e2e_env: []  # allowlist of origins where safe/destructive mutations may run
+#              # (verify-features mutation policy; empty = read-only default)
+profile: strict
