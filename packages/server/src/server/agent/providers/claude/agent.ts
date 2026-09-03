@@ -3276,7 +3276,12 @@ class ClaudeAgentSession implements AgentSession {
       // Dynamic mode switching can recreate the underlying Claude query. Keep the
       // bypass launch capability available so later setPermissionMode("bypassPermissions")
       // calls do not fail after a model/thinking/rewind-driven restart.
-      allowDangerouslySkipPermissions: true,
+      // The Agent SDK sets CLAUDE_CODE_ENTRYPOINT="sdk-ts", which Claude Code
+      // detects as a cloud session. Cloud sessions refuse to run with
+      // --allow-dangerously-skip-permissions. Skip the flag when running as root
+      // (uid 0) — bypass mode is unavailable there anyway, and the interactive
+      // canUseTool callback still handles permission prompts through the app.
+      allowDangerouslySkipPermissions: process.getuid?.() !== 0,
       agents: this.defaults?.agents,
       canUseTool: this.handlePermissionRequest,
       pathToClaudeCodeExecutable: claudeBinary,
