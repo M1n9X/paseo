@@ -2,7 +2,7 @@
 id: tkt-2
 spec: spc-1
 title: Restore imperative focus in assignInputRef for Android keyboard
-status: open
+status: closed
 priority: P1
 covers: [A1, A2, A6]
 ship: one-PR
@@ -22,6 +22,7 @@ Android users cannot type into the Claude Code agent composer. Commit #4190 remo
 Touch set: `packages/app/src/components/ui/text-input/text-input.native.tsx` (assignInputRef, ~3 lines)
 
 In `assignInputRef`, when the new instance attaches and `replacement.autoFocus` is true:
+
 1. Clear `replacement.autoFocus` (prevent re-trigger)
 2. Call `input.focus()` directly — ref callback fires after mount, so the view is attached and the IME will respond
 

@@ -3,7 +3,7 @@ id: spc-1
 slug: android-keyboard-terminal-deprecation
 title: Android keyboard fix + Terminal Pane deprecation
 kind: feat
-status: locked
+status: done
 mode: C
 priority: P1
 summary: "Fix Android keyboard not appearing in Claude Code composer; deprecate Terminal Pane as default mobile entry"

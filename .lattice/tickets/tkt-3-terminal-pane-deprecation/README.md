@@ -2,7 +2,7 @@
 id: tkt-3
 spec: spc-1
 title: Deprecate Terminal Pane as default mobile entry surface
-status: open
+status: closed
 priority: P2
 covers: [A3, A4, A5]
 ship: one-PR
