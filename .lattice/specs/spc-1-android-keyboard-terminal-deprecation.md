@@ -9,7 +9,7 @@ priority: P1
 summary: "Fix Android keyboard not appearing in Claude Code composer; deprecate Terminal Pane as default mobile entry"
 created: 2026-09-03
 updated: 2026-09-03
-tickets: []
+tickets: [tkt-2, tkt-3]
 prs: []
 reviews: [rev-20260903-072418Z]
 supersedes: []
