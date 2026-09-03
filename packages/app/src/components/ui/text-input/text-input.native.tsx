@@ -41,14 +41,27 @@ export const EditingTextInput = forwardRef<EditingTextInputHandle, EditingTextIn
     // focused view down, which cancels the show. Fabric also runs view
     // commands before mount items, so a focus command sent alongside the swap
     // reaches a view that is not attached yet and the IME ignores it. Focus is
-    // therefore carried by the replacement's `autoFocus`, which native applies
-    // once the view is attached.
+    // carried by `shouldFocusAfterMountRef`, consumed in `assignInputRef` when
+    // the new instance attaches — the one moment the view is guaranteed live.
+    // The `autoFocus` prop is kept as a belt-and-suspenders fallback.
     const isAwaitingReplacementRef = useRef(false);
     const [replacement, setReplacement] = useState({ revision: 0, autoFocus: false });
+    // Mirrors replacement.autoFocus into a ref so assignInputRef (which has a
+    // stable identity) can call focus() imperatively after the key-swap remount.
+    // The autoFocus prop is kept as a fallback, but PasteInput does not honor it
+    // reliably on Android — Fabric applies it before the view is attached.
+    const shouldFocusAfterMountRef = useRef(false);
 
     const assignInputRef = useCallback((input: NativeInput | null) => {
       inputRef.current = input;
-      if (input) isAwaitingReplacementRef.current = false;
+      if (!input) return;
+      isAwaitingReplacementRef.current = false;
+      // Ref callback fires after mount — the view is attached and the IME will
+      // respond. This restores the #4044 logic that #4190 removed.
+      if (shouldFocusAfterMountRef.current) {
+        shouldFocusAfterMountRef.current = false;
+        input.focus();
+      }
     }, []);
 
     const setReplacementFocus = useCallback((autoFocus: boolean) => {
@@ -58,6 +71,7 @@ export const EditingTextInput = forwardRef<EditingTextInputHandle, EditingTextIn
     useImperativeHandle(ref, () => ({
       focus: () => {
         if (isAwaitingReplacementRef.current) {
+          shouldFocusAfterMountRef.current = true;
           setReplacementFocus(true);
           return;
         }
@@ -65,6 +79,7 @@ export const EditingTextInput = forwardRef<EditingTextInputHandle, EditingTextIn
       },
       blur: () => {
         if (isAwaitingReplacementRef.current) {
+          shouldFocusAfterMountRef.current = false;
           setReplacementFocus(false);
           return;
         }
@@ -76,6 +91,7 @@ export const EditingTextInput = forwardRef<EditingTextInputHandle, EditingTextIn
         textRef.current = nextText;
         if (nextText === "") {
           const autoFocus = inputRef.current?.isFocused?.() ?? false;
+          shouldFocusAfterMountRef.current = autoFocus;
           if (inputRef.current?.replaceText) {
             inputRef.current.replaceText(nextText, selection);
           } else {
