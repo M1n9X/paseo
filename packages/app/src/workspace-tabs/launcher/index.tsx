@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { Globe, SquarePen, SquareTerminal } from "lucide-react-native";
 import invariant from "tiny-invariant";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
+import { useAppSettings } from "@/hooks/use-settings";
+import { isNative } from "@/constants/platform";
 import { resolvePluginIcon } from "@/plugins/icons";
 import { useInstalledPlugins } from "@/plugins/registry";
 import { pluginPanelSupportsLocation } from "@/plugins/workspace-panels/locations";
@@ -103,6 +105,7 @@ export function useWorkspaceTabLaunchCatalog(input: {
   invariant(launcher, "NewTabLauncherProvider is required");
   const { config } = useDaemonConfig(serverId);
   const plugins = useInstalledPlugins();
+  const { settings } = useAppSettings();
   ensurePanelsRegistered();
 
   const launchSelection = useCallback(
@@ -137,6 +140,7 @@ export function useWorkspaceTabLaunchCatalog(input: {
         shortcutActionId: "workspace-terminal-new",
         disabled: launcher.terminalDisabled,
         panelKind: "terminal",
+        hidden: isNative && !settings.showTerminalPane,
         launch: launchSelection(BUILT_IN_SELECTIONS.terminal),
       },
       changes: {
@@ -242,12 +246,13 @@ export function useWorkspaceTabLaunchCatalog(input: {
   }, [
     config?.terminalProfiles,
     editTerminalProfiles,
+    host,
     launchSelection,
     launcher,
     plugins,
     purpose,
-    host,
     serverId,
+    settings.showTerminalPane,
     t,
   ]);
 }

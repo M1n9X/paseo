@@ -511,6 +511,8 @@ function GeneralSection({
 interface DiagnosticsSectionProps {
   useLegacyTerminalRenderer: boolean;
   onUseLegacyTerminalRendererChange: (value: boolean) => void;
+  showTerminalPane: boolean;
+  onShowTerminalPaneChange: (value: boolean) => void;
   voiceAudioEngine: ReturnType<typeof useVoiceAudioEngineOptional>;
   isPlaybackTestRunning: boolean;
   playbackTestResult: string | null;
@@ -520,6 +522,8 @@ interface DiagnosticsSectionProps {
 function DiagnosticsSection({
   useLegacyTerminalRenderer,
   onUseLegacyTerminalRendererChange,
+  showTerminalPane,
+  onShowTerminalPaneChange,
   voiceAudioEngine,
   isPlaybackTestRunning,
   playbackTestResult,
@@ -550,6 +554,24 @@ function DiagnosticsSection({
                 "settings.diagnostics.legacyTerminalRenderer.accessibilityLabel",
               )}
               testID="legacy-terminal-renderer-switch"
+            />
+          </View>
+        ) : null}
+        {isNative ? (
+          <View style={settingsStyles.row} testID="show-terminal-pane-row">
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>
+                {t("settings.diagnostics.showTerminalPane.label")}
+              </Text>
+              <Text style={settingsStyles.rowHint}>
+                {t("settings.diagnostics.showTerminalPane.description")}
+              </Text>
+            </View>
+            <Switch
+              value={showTerminalPane}
+              onValueChange={onShowTerminalPaneChange}
+              accessibilityLabel={t("settings.diagnostics.showTerminalPane.accessibilityLabel")}
+              testID="show-terminal-pane-switch"
             />
           </View>
         ) : null}
@@ -1263,6 +1285,13 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
     [updateSettings],
   );
 
+  const handleShowTerminalPaneChange = useCallback(
+    (showTerminalPane: boolean) => {
+      void updateSettings({ showTerminalPane });
+    },
+    [updateSettings],
+  );
+
   const handlePlaybackTest = useCallback(async () => {
     if (!voiceAudioEngine || isPlaybackTestRunning) {
       return;
@@ -1497,6 +1526,8 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
               <DiagnosticsSection
                 useLegacyTerminalRenderer={settings.useLegacyTerminalRenderer}
                 onUseLegacyTerminalRendererChange={handleUseLegacyTerminalRendererChange}
+                showTerminalPane={settings.showTerminalPane}
+                onShowTerminalPaneChange={handleShowTerminalPaneChange}
                 voiceAudioEngine={voiceAudioEngine}
                 isPlaybackTestRunning={isPlaybackTestRunning}
                 playbackTestResult={playbackTestResult}

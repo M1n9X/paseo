@@ -2022,6 +2022,11 @@ export const zhCN: TranslationResources = {
         description: "重新打开终端后使用之前的 WebView 终端",
         accessibilityLabel: "使用旧版终端渲染器",
       },
+      showTerminalPane: {
+        label: "显示终端面板",
+        description: "在标签页导航中启用原始终端面板",
+        accessibilityLabel: "显示终端面板",
+      },
       testAudio: "测试音频",
       playTest: "播放测试",
       playing: "正在播放...",

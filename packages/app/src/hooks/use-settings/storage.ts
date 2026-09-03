@@ -92,6 +92,8 @@ export interface AppSettings {
   /** Desktop-only preferences for implicit opens into the ordinary side pane. */
   openInSidePane: OpenInSidePanePreferences;
   pullRequestOpenLocation: PullRequestOpenLocation;
+  /** Show the Terminal Pane in mobile navigation. Default false — Agent SDK chat is the primary entry. */
+  showTerminalPane: boolean;
 }
 
 export type AppSettingsUpdate =
@@ -144,6 +146,7 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   vimKeybindings: false,
   openInSidePane: DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES,
   pullRequestOpenLocation: "explorer",
+  showTerminalPane: false,
 };
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -265,6 +268,7 @@ const StoredAppSettingsSchema = z
     // COMPAT(rendererDesktopSettings): these fields used to share this renderer-owned key.
     manageBuiltInDaemon: z.boolean().optional().catch(undefined),
     releaseChannel: z.enum(["stable", "beta"]).optional().catch(undefined),
+    showTerminalPane: z.boolean().catch(false),
   })
   .transform((stored) => {
     const { legacyPullRequestsInSidePane, ...openInSidePane } = stored.openInSidePane;

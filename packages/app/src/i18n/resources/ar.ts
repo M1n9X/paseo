@@ -2046,6 +2046,11 @@ export const ar: TranslationResources = {
         description: "استخدام طرفية WebView السابقة بعد إعادة فتح الطرفية",
         accessibilityLabel: "استخدام عارض الطرفية السابق",
       },
+      showTerminalPane: {
+        label: "Show terminal pane",
+        description: "Enable the raw terminal pane in tab navigation",
+        accessibilityLabel: "Show terminal pane",
+      },
       testAudio: "اختبار الصوت",
       playTest: "لعب الاختبار",
       playing: "جارٍ اللعب...",

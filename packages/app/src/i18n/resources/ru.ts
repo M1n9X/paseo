@@ -2080,6 +2080,11 @@ export const ru: TranslationResources = {
         description: "Использовать прежний WebView-терминал после повторного открытия",
         accessibilityLabel: "Использовать прежний рендерер терминала",
       },
+      showTerminalPane: {
+        label: "Show terminal pane",
+        description: "Enable the raw terminal pane in tab navigation",
+        accessibilityLabel: "Show terminal pane",
+      },
       testAudio: "Проверка звука",
       playTest: "Воспроизвести тестовый звук",
       playing: "Воспроизведение...",

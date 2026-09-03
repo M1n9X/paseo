@@ -2057,6 +2057,11 @@ export const ko: TranslationResources = {
         description: "터미널을 다시 열 때 이전 WebView 터미널을 사용합니다.",
         accessibilityLabel: "레거시 터미널 렌더러 사용",
       },
+      showTerminalPane: {
+        label: "Show terminal pane",
+        description: "Enable the raw terminal pane in tab navigation",
+        accessibilityLabel: "Show terminal pane",
+      },
       testAudio: "오디오 테스트",
       playTest: "테스트 재생",
       playing: "재생 중...",

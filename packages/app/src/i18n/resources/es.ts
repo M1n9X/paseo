@@ -2096,6 +2096,11 @@ export const es: TranslationResources = {
         description: "Usa el terminal WebView anterior al volver a abrir un terminal",
         accessibilityLabel: "Usar el renderizador de terminal anterior",
       },
+      showTerminalPane: {
+        label: "Show terminal pane",
+        description: "Enable the raw terminal pane in tab navigation",
+        accessibilityLabel: "Show terminal pane",
+      },
       testAudio: "audio de prueba",
       playTest: "Prueba de juego",
       playing: "Jugando...",

@@ -2099,6 +2099,11 @@ export const fr: TranslationResources = {
         description: "Utilise l’ancien terminal WebView après la réouverture d’un terminal",
         accessibilityLabel: "Utiliser l’ancien rendu du terminal",
       },
+      showTerminalPane: {
+        label: "Show terminal pane",
+        description: "Enable the raw terminal pane in tab navigation",
+        accessibilityLabel: "Show terminal pane",
+      },
       testAudio: "Tester le son",
       playTest: "Jouer à l'essai",
       playing: "Jouant...",

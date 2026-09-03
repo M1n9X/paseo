@@ -2063,6 +2063,11 @@ export const ja: TranslationResources = {
         description: "ターミナルを開き直した後、以前の WebView ターミナルを使用します",
         accessibilityLabel: "以前のターミナルレンダラーを使用",
       },
+      showTerminalPane: {
+        label: "Show terminal pane",
+        description: "Enable the raw terminal pane in tab navigation",
+        accessibilityLabel: "Show terminal pane",
+      },
       testAudio: "音声をテスト",
       playTest: "テスト再生",
       playing: "再生中...",

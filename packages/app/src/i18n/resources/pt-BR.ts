@@ -2080,6 +2080,11 @@ export const ptBR: TranslationResources = {
         description: "Usa o terminal WebView anterior após reabrir um terminal",
         accessibilityLabel: "Usar renderizador de terminal anterior",
       },
+      showTerminalPane: {
+        label: "Show terminal pane",
+        description: "Enable the raw terminal pane in tab navigation",
+        accessibilityLabel: "Show terminal pane",
+      },
       testAudio: "Testar áudio",
       playTest: "Reproduzir teste",
       playing: "Reproduzindo...",
